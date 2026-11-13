@@ -71,6 +71,25 @@ namespace PicoGK
         BBox3 oBounds {get;}
     }
 
+    /// <summary>
+    /// Optional batch evaluation for an implicit. RenderImplicit and
+    /// IntersectImplicit call this when the object implements it. Otherwise
+    /// they call fSignedDistance once per point. The runtime may call this
+    /// on several threads, each with a disjoint slice of one chunk. Do not
+    /// mutate shared state. The spans have the same length and are valid
+    /// only for this call. Write one distance per point, using the same
+    /// sign convention as fSignedDistance.
+    /// </summary>
+    public interface IBatchedImplicit : IImplicit
+    {
+        /// <summary>
+        /// Evaluate the signed distance at each point in oPoints.
+        /// </summary>
+        /// <param name="oPoints">Points to sample, in millimetres</param>
+        /// <param name="afDistance">One distance per point, same length as oPoints</param>
+        void EvaluateBatch(ReadOnlySpan<Vector3> oPoints, Span<float> afDistance);
+    }
+
     public partial class Voxels
     {
         /// <summary>
@@ -722,7 +741,22 @@ namespace PicoGK
         /// <param name="oBounds">Bounding box in which to render the implicit</param>
         public void RenderImplicit( in IImplicit xImp,
                                     in BBox3 oBounds)
-            => _RenderImplicit(lib.hThis, hThis, in oBounds, xImp.fSignedDistance);
+        {
+            if (xImp is IBatchedImplicit xBatch)
+            {
+                IBatchedImplicit xLocal = xBatch;
+                unsafe
+                {
+                    void Callback(Vector3* pvecPoints, float* pfDistances, int nCount)
+                        => EvaluateBatch(xLocal, pvecPoints, pfDistances, nCount);
+
+                    _RenderImplicitBatch(lib.hThis, hThis, in oBounds, Callback);
+                }
+                return;
+            }
+
+            _RenderImplicit(lib.hThis, hThis, in oBounds, xImp.fSignedDistance);
+        }
 
         /// <summary>
         /// Render an implicit signed distance function into the voxels
@@ -736,7 +770,34 @@ namespace PicoGK
         /// </summary>
         /// <param name="xImp">Implicit object with signed distance function</param>
         public void IntersectImplicit(in IImplicit xImp)
-            => _IntersectImplicit(lib.hThis, hThis, xImp.fSignedDistance);
+        {
+            if (xImp is IBatchedImplicit xBatch)
+            {
+                IBatchedImplicit xLocal = xBatch;
+                unsafe
+                {
+                    void Callback(Vector3* pvecPoints, float* pfDistances, int nCount)
+                        => EvaluateBatch(xLocal, pvecPoints, pfDistances, nCount);
+
+                    _IntersectImplicitBatch(lib.hThis, hThis, Callback);
+                }
+                return;
+            }
+
+            _IntersectImplicit(lib.hThis, hThis, xImp.fSignedDistance);
+        }
+
+        static unsafe void EvaluateBatch(  IBatchedImplicit xBatch,
+                                            Vector3* pvecPoints,
+                                            float* pfDistances,
+                                            int nCount)
+        {
+            if (nCount <= 0)
+                return;
+
+            xBatch.EvaluateBatch(   new ReadOnlySpan<Vector3>(pvecPoints, nCount),
+                                    new Span<float>(pfDistances, nCount));
+        }
 
 
         /// <summary>

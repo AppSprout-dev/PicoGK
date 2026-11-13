@@ -381,16 +381,32 @@ namespace PicoGK
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate float CallbackImplicitDistance(in Vector3 vec);
 
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private unsafe delegate void CallbackImplicitBatch(    Vector3* pvecPoints,
+                                                                float* pfDistances,
+                                                                int nCount);
+
         [DllImport(Config.strPicoGKLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "Voxels_RenderImplicit")]
         private static extern void _RenderImplicit( LibHandle   hLib,
                                                     VoxHandle   hThis,
                                                     in BBox3 oBounds,
                                                     CallbackImplicitDistance Callback);
 
+        [DllImport(Config.strPicoGKLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "Voxels_RenderImplicitBatch")]
+        private static extern void _RenderImplicitBatch(   LibHandle   hLib,
+                                                            VoxHandle   hThis,
+                                                            in BBox3 oBounds,
+                                                            CallbackImplicitBatch Callback);
+
         [DllImport(Config.strPicoGKLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "Voxels_IntersectImplicit")]
         private static extern void _IntersectImplicit(  LibHandle   hLib,
                                                         VoxHandle   hThis,
                                                         CallbackImplicitDistance Callback);
+
+        [DllImport(Config.strPicoGKLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "Voxels_IntersectImplicitBatch")]
+        private static extern void _IntersectImplicitBatch( LibHandle   hLib,
+                                                            VoxHandle   hThis,
+                                                            CallbackImplicitBatch Callback);
 
         [DllImport(Config.strPicoGKLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "Voxels_RenderLattice")]
         private static extern void _RenderLattice(  LibHandle   hLib,
